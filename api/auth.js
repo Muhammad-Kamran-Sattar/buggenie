@@ -22,6 +22,15 @@ async function getDb() {
       updated_at TEXT DEFAULT (datetime('now'))
     )
   `)
+
+  // Create demo user if not exists
+  const demoExists = db.exec("SELECT id FROM users WHERE email = 'demo@buggenie.ai'")
+  if (demoExists.length === 0 || demoExists[0].values.length === 0) {
+    const demoHash = await bcrypt.hash('demo123', 10)
+    db.run("INSERT INTO users (id, email, password_hash, name) VALUES (?, ?, ?, ?)",
+      ['demo-user-id', 'demo@buggenie.ai', demoHash, 'Demo User'])
+  }
+
   return db
 }
 
@@ -62,14 +71,16 @@ export default async function handler(req, res) {
     return res.status(200).end()
   }
 
-  const { method, url } = req
+  // Parse the path from URL, removing query string
+  const path = req.url?.split('?')[0] || ''
+  const method = req.method
 
   try {
     db = await getDb()
 
     // Route: POST /api/auth/register
-    if (method === 'POST' && url === '/api/auth/register') {
-      const { email, password, name } = req.body
+    if (method === 'POST' && path === '/api/auth/register') {
+      const { email, password, name } = req.body || {}
 
       if (!email || !password || !name) {
         return res.status(400).json({ error: 'Email, password, and name are required' })
@@ -95,8 +106,8 @@ export default async function handler(req, res) {
     }
 
     // Route: POST /api/auth/login
-    if (method === 'POST' && url === '/api/auth/login') {
-      const { email, password } = req.body
+    if (method === 'POST' && path === '/api/auth/login') {
+      const { email, password } = req.body || {}
 
       if (!email || !password) {
         return res.status(400).json({ error: 'Email and password are required' })
@@ -121,7 +132,7 @@ export default async function handler(req, res) {
     }
 
     // Route: GET /api/auth/me
-    if (method === 'GET' && url === '/api/auth/me') {
+    if (method === 'GET' && path === '/api/auth/me') {
       const token = req.headers.authorization?.split(' ')[1]
       if (!token) {
         return res.status(401).json({ error: 'Not authenticated' })
@@ -140,7 +151,7 @@ export default async function handler(req, res) {
     }
 
     // 404 for unknown routes
-    res.status(404).json({ error: 'Not found' })
+    res.status(404).json({ error: 'Not found', path })
 
   } catch (err) {
     console.error('Auth API error:', err)

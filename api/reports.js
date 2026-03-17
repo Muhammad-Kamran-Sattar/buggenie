@@ -183,20 +183,22 @@ export default async function handler(req, res) {
     return res.status(200).end()
   }
 
-  const { method, url } = req
+  // Parse the path from URL, removing query string
+  const path = req.url?.split('?')[0] || ''
+  const method = req.method
 
   try {
     db = await getDb()
 
     // GET /api/reports - Get all reports
-    if (method === 'GET' && (url === '/api/reports' || url === '/api/reports/')) {
+    if (method === 'GET' && path === '/api/reports') {
       const reports = runAll('SELECT * FROM reports ORDER BY created_at DESC')
       return res.json({ reports })
     }
 
     // GET /api/reports/:id - Get single report
-    if (method === 'GET' && url.match(/^\/api\/reports\/[^\/]+$/)) {
-      const id = url.split('/').pop()
+    if (method === 'GET' && path.match(/^\/api\/reports\/[^\/]+$/)) {
+      const id = path.split('/').pop()
       const report = runQuery('SELECT * FROM reports WHERE id = ?', [id])
       if (!report) {
         return res.status(404).json({ error: 'Report not found' })
@@ -205,8 +207,8 @@ export default async function handler(req, res) {
     }
 
     // POST /api/reports/generate - Generate bug report with AI
-    if (method === 'POST' && (url === '/api/reports/generate' || url === '/api/reports/generate/')) {
-      const { title, project, severity, errorInput } = req.body
+    if (method === 'POST' && path === '/api/reports/generate') {
+      const { title, project, severity, errorInput } = req.body || {}
 
       if (!errorInput) {
         return res.status(400).json({ error: 'Error input is required' })
@@ -223,7 +225,7 @@ export default async function handler(req, res) {
     }
 
     // POST /api/reports - Save report
-    if (method === 'POST' && (url === '/api/reports' || url === '/api/reports/')) {
+    if (method === 'POST' && path === '/api/reports') {
       const {
         original_input,
         generated_title,
@@ -237,7 +239,7 @@ export default async function handler(req, res) {
         tags,
         ai_confidence,
         project
-      } = req.body
+      } = req.body || {}
 
       const id = uuidv4()
       const userId = 'demo-user-id'
@@ -269,14 +271,14 @@ export default async function handler(req, res) {
     }
 
     // DELETE /api/reports/:id
-    if (method === 'DELETE' && url.match(/^\/api\/reports\/[^\/]+$/)) {
-      const id = url.split('/').pop()
+    if (method === 'DELETE' && path.match(/^\/api\/reports\/[^\/]+$/)) {
+      const id = path.split('/').pop()
       execQuery('DELETE FROM reports WHERE id = ?', [id])
       return res.json({ success: true })
     }
 
     // 404
-    res.status(404).json({ error: 'Not found' })
+    res.status(404).json({ error: 'Not found', path })
 
   } catch (err) {
     console.error('Reports API error:', err)
