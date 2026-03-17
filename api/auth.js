@@ -78,9 +78,58 @@ export default async function handler(req, res) {
   try {
     db = await getDb()
 
+    // Route: POST /api/auth/login
+    if (method === 'POST' && path === '/api/auth/login') {
+      // Parse body if not already parsed
+      let body = req.body
+      if (typeof body === 'string') {
+        try {
+          body = JSON.parse(body)
+        } catch (e) {
+          body = {}
+        }
+      }
+      const { email, password } = body || {}
+
+      console.log('Login attempt:', email)
+
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required' })
+      }
+
+      const user = runQuery('SELECT * FROM users WHERE email = ?', [email])
+      console.log('User found:', !!user)
+
+      if (!user) {
+        return res.status(401).json({ error: 'Invalid credentials' })
+      }
+
+      const validPassword = await bcrypt.compare(password, user.password_hash)
+      console.log('Password valid:', validPassword)
+
+      if (!validPassword) {
+        return res.status(401).json({ error: 'Invalid credentials' })
+      }
+
+      const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' })
+
+      return res.json({
+        token,
+        user: { id: user.id, email: user.email, name: user.name }
+      })
+    }
+
     // Route: POST /api/auth/register
     if (method === 'POST' && path === '/api/auth/register') {
-      const { email, password, name } = req.body || {}
+      let body = req.body
+      if (typeof body === 'string') {
+        try {
+          body = JSON.parse(body)
+        } catch (e) {
+          body = {}
+        }
+      }
+      const { email, password, name } = body || {}
 
       if (!email || !password || !name) {
         return res.status(400).json({ error: 'Email, password, and name are required' })
@@ -102,32 +151,6 @@ export default async function handler(req, res) {
       return res.json({
         token,
         user: { id: userId, email, name }
-      })
-    }
-
-    // Route: POST /api/auth/login
-    if (method === 'POST' && path === '/api/auth/login') {
-      const { email, password } = req.body || {}
-
-      if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password are required' })
-      }
-
-      const user = runQuery('SELECT * FROM users WHERE email = ?', [email])
-      if (!user) {
-        return res.status(401).json({ error: 'Invalid credentials' })
-      }
-
-      const validPassword = await bcrypt.compare(password, user.password_hash)
-      if (!validPassword) {
-        return res.status(401).json({ error: 'Invalid credentials' })
-      }
-
-      const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' })
-
-      return res.json({
-        token,
-        user: { id: user.id, email: user.email, name: user.name }
       })
     }
 
@@ -155,6 +178,6 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error('Auth API error:', err)
-    res.status(500).json({ error: 'Internal server error' })
+    res.status(500).json({ error: err.message || 'Internal server error' })
   }
 }
