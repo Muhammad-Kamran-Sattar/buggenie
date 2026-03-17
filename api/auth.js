@@ -24,11 +24,16 @@ async function getDb() {
   `)
 
   // Create demo user if not exists
-  const demoExists = db.exec("SELECT id FROM users WHERE email = 'demo@buggenie.ai'")
-  if (demoExists.length === 0 || demoExists[0].values.length === 0) {
-    const demoHash = await bcrypt.hash('demo123', 10)
-    db.run("INSERT INTO users (id, email, password_hash, name) VALUES (?, ?, ?, ?)",
-      ['demo-user-id', 'demo@buggenie.ai', demoHash, 'Demo User'])
+  try {
+    const demoExists = db.exec("SELECT id FROM users WHERE email = 'demo@buggenie.ai'")
+    if (demoExists.length === 0 || !demoExists[0].values || demoExists[0].values.length === 0) {
+      const demoHash = await bcrypt.hash('demo123', 10)
+      db.run("INSERT INTO users (id, email, password_hash, name) VALUES (?, ?, ?, ?)",
+        ['demo-user-id', 'demo@buggenie.ai', demoHash, 'Demo User'])
+      console.log('Demo user created')
+    }
+  } catch (e) {
+    console.log('Demo user may already exist:', e.message)
   }
 
   return db
@@ -71,25 +76,29 @@ export default async function handler(req, res) {
     return res.status(200).end()
   }
 
+  // Parse body if needed
+  let body = req.body
+  if (typeof body === 'string') {
+    try {
+      body = JSON.parse(body)
+    } catch (e) {
+      body = {}
+    }
+  }
+  req.parsedBody = body
+
   // Parse the path from URL, removing query string
   const path = req.url?.split('?')[0] || ''
   const method = req.method
+
+  console.log('Request:', method, path, 'body:', req.parsedBody)
 
   try {
     db = await getDb()
 
     // Route: POST /api/auth/login
     if (method === 'POST' && path === '/api/auth/login') {
-      // Parse body if not already parsed
-      let body = req.body
-      if (typeof body === 'string') {
-        try {
-          body = JSON.parse(body)
-        } catch (e) {
-          body = {}
-        }
-      }
-      const { email, password } = body || {}
+      const { email, password } = req.parsedBody || {}
 
       console.log('Login attempt:', email)
 
@@ -98,7 +107,7 @@ export default async function handler(req, res) {
       }
 
       const user = runQuery('SELECT * FROM users WHERE email = ?', [email])
-      console.log('User found:', !!user)
+      console.log('User found:', !!user, user?.email)
 
       if (!user) {
         return res.status(401).json({ error: 'Invalid credentials' })
@@ -121,15 +130,9 @@ export default async function handler(req, res) {
 
     // Route: POST /api/auth/register
     if (method === 'POST' && path === '/api/auth/register') {
-      let body = req.body
-      if (typeof body === 'string') {
-        try {
-          body = JSON.parse(body)
-        } catch (e) {
-          body = {}
-        }
-      }
-      const { email, password, name } = body || {}
+      const { email, password, name } = req.parsedBody || {}
+
+      console.log('Register attempt:', email)
 
       if (!email || !password || !name) {
         return res.status(400).json({ error: 'Email, password, and name are required' })
@@ -145,6 +148,8 @@ export default async function handler(req, res) {
 
       execQuery('INSERT INTO users (id, email, password_hash, name) VALUES (?, ?, ?, ?)',
         [userId, email, passwordHash, name])
+
+      console.log('User created:', email)
 
       const token = jwt.sign({ userId, email }, JWT_SECRET, { expiresIn: '7d' })
 
