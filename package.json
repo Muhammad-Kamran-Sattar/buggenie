@@ -3,12 +3,16 @@
   "version": "1.0.0",
   "description": "AI-powered bug report generator SaaS",
   "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:client": "cd client && npm run dev",
-    "dev:server": "cd server && npm run dev",
-    "build": "cd client && npm run build",
-    "start": "cd server && npm run start"
+    "dev:client": "npm run dev --workspace=client",
+    "dev:server": "npm run dev --workspace=server",
+    "build": "npm run build --workspace=client",
+    "start": "npm run start --workspace=server"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -17,6 +21,11 @@
     "concurrently": "^8.2.2"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.99.2"
+    "@anthropic-ai/sdk": "^0.20.0",
+    "@supabase/supabase-js": "^2.99.2",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "sql.js": "^1.10.3",
+    "uuid": "^9.0.1"
   }
 }

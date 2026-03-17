@@ -4,6 +4,6 @@
   "framework": "vite",
   "installCommand": "npm install",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/reports.js" }
+    { "source": "/api/(.*)", "destination": "/api/$1" }
   ]
 }
